@@ -54,5 +54,13 @@
     "describe.json",
     "README.md",
     "LICENSE"
-  ]
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wu-jian-xun/cortico-world-memory-files.git"
+  },
+  "homepage": "https://github.com/wu-jian-xun/cortico-world-memory-files#readme",
+  "bugs": {
+    "url": "https://github.com/wu-jian-xun/cortico-world-memory-files/issues"
+  }
 }
