@@ -1,0 +1,58 @@
+{
+  "name": "cortico-world-memory-files",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "给会失忆的 AI 伙伴用的一套规矩：STATE / 流水 / 待办 / 交接 / 备份，外加带引力的记忆账本和一张钩子表。文件是主线，脑子是缓存。只在 Windows 上跑（底层是 PowerShell 脚本，用了 robocopy）。",
+  "license": "MIT",
+  "author": "xun",
+  "os": [
+    "win32"
+  ],
+  "keywords": [
+    "cortico-world",
+    "cortico",
+    "coopanion",
+    "memory",
+    "continuity",
+    "handoff",
+    "companion"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "describe": "node --experimental-transform-types --no-warnings tools/gen-describe.mjs",
+    "smoke": "node --experimental-transform-types --no-warnings tools/smoke.mjs"
+  },
+  "cortico": {
+    "kind": "world",
+    "api": 6,
+    "displayName": "文件记忆",
+    "describe": "./describe.json",
+    "tags": [
+      "memory",
+      "internal-state"
+    ],
+    "locales": {
+      "zh": {
+        "displayName": "文件记忆",
+        "description": "给会失忆的 AI 伙伴用的一套规矩：STATE / 流水 / 待办 / 交接 / 备份，外加带引力的记忆账本和一张钩子表——正文沉下去，钩子留在水面。文件是主线，脑子是缓存；缺口要标记，不要补圆。十四个工具，底层是一个 PowerShell 脚本。只在 Windows 上跑。"
+      },
+      "en": {
+        "displayName": "File Memory",
+        "description": "A plain-files memory discipline for a companion that loses its context: STATE, a running log, todos, handoffs and backups, plus a weighted memory ledger and a hooks table so a buried entry can still be pulled back. Files are the source of truth, the model is cache. Fourteen tools over one PowerShell script. Windows only."
+      }
+    }
+  },
+  "files": [
+    "src",
+    "memory-system",
+    "describe.json",
+    "README.md",
+    "LICENSE"
+  ]
+}

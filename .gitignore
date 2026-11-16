@@ -1,0 +1,19 @@
+# backups
+backups/
+*.bak
+*.bak-*
+
+# your own memory lives outside the repo
+home/
+STATE.md
+todo.md
+notes/backup-last.txt
+
+# editors / os
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+# 冒烟测试的沙盒
+tmp-smoke/
