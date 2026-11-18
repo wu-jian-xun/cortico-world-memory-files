@@ -1,6 +1,6 @@
-{
+﻿{
   "name": "cortico-world-memory-files",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "给会失忆的 AI 伙伴用的一套规矩：STATE / 流水 / 待办 / 交接 / 备份，外加带引力的记忆账本和一张钩子表。文件是主线，脑子是缓存。只在 Windows 上跑（底层是 PowerShell 脚本，用了 robocopy）。",
   "license": "MIT",
@@ -57,10 +57,10 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/wu-jian-xun/cortico-world-memory-files.git"
+    "url": "https://github.com/guyusuifengxing/cortico-world-memory-files.git"
   },
-  "homepage": "https://github.com/wu-jian-xun/cortico-world-memory-files#readme",
+  "homepage": "https://github.com/guyusuifengxing/cortico-world-memory-files#readme",
   "bugs": {
-    "url": "https://github.com/wu-jian-xun/cortico-world-memory-files/issues"
+    "url": "https://github.com/guyusuifengxing/cortico-world-memory-files/issues"
   }
 }

@@ -10,6 +10,7 @@
  *  1) **引力不写在这里。** 轻重只有账本 `entries/YYYY-MM.tsv` 一处算数，抄一份迟早两个数打架。
  *  2) **钩子跟账本的钩子对得上**，这样「轻重」和「原文」才接得起来。
  *  3) **不自动同步。** 什么值得留个钩子，是人的判断；工具只提供 `ms_hook` 让人写，不替人写。
+ *  4) **一个钩子可以指好几处。** 2026-11-18 哥：「一个钩子，也可能勾出来很多事儿。」同名不同去处 = 再加一行，不覆盖原来那处。
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -19,6 +20,7 @@ export const HOOKS_HEADER = `# 钩子表 · 钩子 → 去处
 
 # 一行一条：「钩子 | 去处 | 一句话（可省）」。去处写 \`路径\` 或 \`路径:行号\`（相对记忆根目录）。
 # 引力不在这儿写：账本 entries/YYYY-MM.tsv 是唯一算数的地方。
+# 一个钩子可以有好几行、指向不同地方：一件事能从几个角度被勾回来。同名同去处只更新备注。
 # 正文搬进 archive/ 之前，先在这儿留一行——沉下去不等于丢了，钩子一提就能捞回来。
 `;
 
@@ -176,12 +178,18 @@ export function writeHook(
   if (hook.includes('|')) return { ok: false, text: '钩子里不能有竖线（是竖线分列的表）。' };
 
   const rows = readHooks(root);
-  const idx = rows.findIndex((r) => r.hook === hook);
+  const sameHook = rows.filter((r) => r.hook === hook);
 
   if (input.remove === true) {
-    if (idx < 0) return { ok: false, text: `钩子表里没有「${hook}」，没什么可删的。` };
-    rows.splice(idx, 1);
-    return save(root, rows, `删了：「${hook}」不再留在水面。原文还在文件里，ms_search 翻得到。`);
+    if (sameHook.length === 0) return { ok: false, text: `钩子表里没有「${hook}」，没什么可删的。` };
+    const keep = rows.filter((r) => r.hook !== hook);
+    return save(
+      root,
+      keep,
+      sameHook.length > 1
+        ? `删了：「${hook}」不在水面了（${sameHook.length} 处一起删）。原文还在文件里，ms_search 翻得到。`
+        : `删了：「${hook}」不再留在水面。原文还在文件里，ms_search 翻得到。`,
+    );
   }
 
   const target = String(input.target ?? '').trim();
@@ -193,17 +201,23 @@ export function writeHook(
 
   const note = String(input.note ?? '').trim();
   const row: HookRow = { hook, target, note };
-  if (idx >= 0) {
-    const old = rows[idx];
-    rows[idx] = row;
-    return save(
-      root,
-      rows,
-      old.target === target ? `「${hook}」还是指向 ${target}（备注已更新）。` : `改了：「${hook}」${old.target} → ${target}。`,
-    );
+  /*
+   * 一个钩子可以指好几处（2026-11-18 哥：「一个钩子，也可能勾出来很多事儿」）。
+   * 同名同去处 = 同一条，只更新备注；同名不同去处 = 再加一行，不覆盖原来那处。
+   */
+  const at = rows.findIndex((r) => r.hook === hook && r.target === target);
+  if (at >= 0) {
+    rows[at] = row;
+    return save(root, rows, `「${hook}」还是指向 ${target}（备注已更新）。`);
   }
   rows.push(row);
-  return save(root, rows, `留了钩子：「${hook}」→ ${target}。正文将来搬进 archive/，靠它捞得回来。`);
+  return save(
+    root,
+    rows,
+    `留了钩子：「${hook}」→ ${target}` +
+      `${sameHook.length ? `（这是「${hook}」的第 ${sameHook.length + 1} 处）` : ''}。` +
+      '正文将来搬进 archive/，靠它捞得回来。',
+  );
 }
 
 function save(root: string, rows: HookRow[], done: string): HookWriteResult {

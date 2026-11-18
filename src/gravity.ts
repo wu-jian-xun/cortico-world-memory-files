@@ -14,7 +14,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, appendFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-export const ENTRY_HEADER = '# 日期\t时间\t引力\t钩子\t简述\t出处\t标记\t记录于';
+export const ENTRY_HEADER = '# 日期\t时间\t引力\t钩子\t简述\t出处\t标记\t记录于\t难度分';
 const MONTH_RE = /^(\d{4})-(\d{2})\.tsv$/;
 
 export interface Entry {
@@ -28,6 +28,8 @@ export interface Entry {
   mark: string;
   /** 这一行是什么时候写进去的 */
   recordedAt: string;
+  /** 难度分：被「费劲翻出来」攒下的护盾（好捞 +0 / 费劲 +1 / 翻半天 +2）。越大掉得越慢。 */
+  recall: number;
 }
 
 export function entriesDir(root: string): string {
@@ -88,6 +90,7 @@ export function readAllEntries(root: string): Entry[] {
         source: (cols[5] ?? '').trim(),
         mark: (cols[6] ?? '').trim(),
         recordedAt: (cols[7] ?? '').trim(),
+        recall: Number((cols[8] ?? '').trim()) || 0,
       });
     }
   }
@@ -126,6 +129,8 @@ export function writeEntry(
     source?: string;
     anchor?: boolean;
     reason?: string;
+    /** 难度分：不填就沿用这条原来的。 */
+    recall?: number;
   },
 ): WriteResult {
   const hook = String(input.hook ?? '').trim();
@@ -173,9 +178,13 @@ export function writeEntry(
   }
   const file = join(dir, `${monthOf(date)}.tsv`);
   const createdAt = existsSync(file) ? '' : `${ENTRY_HEADER}\n`;
+  const recallScore =
+    input.recall === undefined
+      ? (existing0?.recall ?? 0)
+      : Math.max(0, Math.round(Number(input.recall) || 0));
   const line =
     `${createdAt}${date}\t${time}\t${weight}\t${hook}\t${brief}\t${String(input.source ?? '').trim() || '-'}\t` +
-    `${anchor ? '锚' : ''}\t${now.date} ${now.time}\n`;
+    `${anchor ? '锚' : ''}\t${now.date} ${now.time}\t${recallScore}\n`;
 
   try {
     appendFileSync(file, line, 'utf8');
@@ -361,7 +370,9 @@ export function decay(root: string, opts: DecayOptions): string {
     const n = touches.get(e.hook) ?? 1;
     // 被反复动过的衰减得慢：动过三次的，闲置天数按七折算。
     const effective = daysIdle / (1 + 0.15 * (n - 1));
-    const drop = Math.min(30, Math.max(1, Math.round((effective / 30) * 3)));
+    // 费劲翻出来过的掉得慢：护盾 = 1 + 0.5 × 难度分。
+    const shield = 1 + 0.5 * (e.recall ?? 0);
+    const drop = Math.min(30, Math.max(1, Math.round(((effective / 30) * 3) / shield)));
     const suggested = Math.max(10, e.weight - drop);
     if (suggested >= e.weight) continue;
     rows.push({ e, daysIdle, touches: n, suggested });
@@ -375,7 +386,7 @@ export function decay(root: string, opts: DecayOptions): string {
   const shown = rows.slice(0, limit);
   const lines = shown.map(
     ({ e, daysIdle, touches: n, suggested }) =>
-      `- **${e.hook}** ${e.weight} → 建议 ${suggested}（闲置 ${daysIdle} 天，动过 ${n} 次；现在落${
+      `- **${e.hook}** ${e.weight} → 建议 ${suggested}（闲置 ${daysIdle} 天，动过 ${n} 次，难度分 ${e.recall ?? 0}；现在落${
         layerOf(e, opts.floatLine, opts.sinkLine) === 'float' ? '在浮' : layerOf(e, opts.floatLine, opts.sinkLine) === 'half' ? '在半浮' : '在沉'
       }）`,
   );
@@ -385,4 +396,51 @@ export function decay(root: string, opts: DecayOptions): string {
     (rows.length > shown.length ? `…还有 ${rows.length - shown.length} 条，给大一点的 limit。\n` : '') +
     '要落下就走 `ms_weight`，并且给原因（做成事 / 重申 / 纠正）；不想降就放着——**沉下去不等于丢了**，`ms_search` 照样翻得到。'
   );
+}
+
+/**
+ * 记一次「捞的难度」：好捞不记，费劲 +1、翻半天 +2，攒成这条的护盾。
+ *
+ * 只动难度分，不动引力——翻得费劲不算「做成事」，曝光也不算强化。
+ */
+export function bumpRecall(
+  root: string,
+  input: { hook: string; effort: number; note?: string },
+): WriteResult {
+  const hook = String(input.hook ?? '').trim();
+  if (!hook) return { ok: false, text: '给个钩子：要给哪一条记难度。' };
+  const effort = Math.round(Number(input.effort));
+  if (![1, 2, 3].includes(effort)) {
+    return { ok: false, text: 'effort 只能是 1（好捞）/ 2（翻了会儿）/ 3（翻半天）。' };
+  }
+  const existing = currentByHook(root).get(hook);
+  if (!existing) {
+    return {
+      ok: false,
+      text: `账本里没有「${hook}」这条：先 ms_entry 记一条，或者用 ms_recall 看看相近的钩子叫什么。`,
+    };
+  }
+  if (effort === 1) {
+    return { ok: true, text: `「${hook}」好捞，不记：一喊就想起来的，不给它加护盾。` };
+  }
+  const gain = effort - 1;
+  const before = existing.recall ?? 0;
+  const next = before + gain;
+  const res = writeEntry(root, {
+    date: existing.date,
+    time: existing.time,
+    weight: existing.weight,
+    hook,
+    brief: existing.brief,
+    source: existing.source,
+    anchor: existing.mark === '锚',
+    recall: next,
+  });
+  if (!res.ok) return res;
+  return {
+    ok: true,
+    text:
+      `「${hook}」难度分 ${before} → ${next}（${effort === 2 ? '翻了会儿' : '翻了半天'}` +
+      `${input.note ? '：' + input.note : ''}）。掉得会慢一点——费劲翻出来的，本来就该留在水面上。`,
+  };
 }

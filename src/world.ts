@@ -19,7 +19,7 @@ import type { StoragePart, ToolDef, World, WorldHost, WorldLamp, WorldWebUiDecl 
 import type { WorldContext } from 'cortico/world.ts';
 import { MEMORY_FILES_CONFIG_GROUP, MEMORY_FILES_DEFAULTS, type MemoryFilesConfig } from './config.ts';
 import { engineAvailable, engineWhyUnavailable, formatSearch, readMemory, runEngine, searchMemory, archiveLogs } from './engine.ts';
-import { surface, writeEntry, changeWeight, decay, type Layer } from './gravity.ts';
+import { surface, writeEntry, changeWeight, decay, bumpRecall, type Layer } from './gravity.ts';
 import { recall, writeHook } from './hooks.ts';
 
 const ENV_PROMPT_FILE = fileURLToPath(new URL('./ENV_PROMPT.md', import.meta.url));
@@ -149,6 +149,7 @@ export class MemoryFilesWorld implements World {
       this.surfaceTool(),
       this.decayTool(),
       this.recallTool(),
+      this.effortTool(),
       this.hookTool(),
       this.logTool(),
       this.checkTool(),
@@ -499,6 +500,41 @@ export class MemoryFilesWorld implements World {
           floatLine: Number(c.gravityFloatLine ?? 85),
           sinkLine: Number(c.gravitySinkLine ?? 70),
         });
+      },
+    };
+  }
+
+  /** 记一次「捞的难度」：难翻出来的掉得慢。 */
+  private effortTool(): ToolDef {
+    return {
+      name: 'ms_effort',
+      description:
+        '记一次「这条我捞得多费劲」：好捞 = 不记，翻了会儿 +1，翻半天 +2，攒成这条的护盾，`ms_decay` 掉它的时候会打折。' +
+        '**只动难度分，不动引力**——翻得费劲不算「做成事」，曝光也不算强化。' +
+        '用完 `ms_recall` / `ms_search` 真翻到东西了再调，别空调。',
+      tags: ['write'],
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['hook', 'effort'],
+        properties: {
+          hook: { type: 'string', description: '哪一条：账本里的钩子。' },
+          effort: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 3,
+            description: '1 = 一喊就想起来（不记）；2 = 换了词、翻了两下才找到；3 = 翻半天才对上。',
+          },
+          note: { type: 'string', description: '怎么翻到的（可省），给以后的自己看。' },
+        },
+      },
+      handler: async (args) => {
+        const r = bumpRecall(this.root(), {
+          hook: typeof args.hook === 'string' ? args.hook : '',
+          effort: Number(args.effort),
+          note: typeof args.note === 'string' ? args.note : undefined,
+        });
+        return r.text;
       },
     };
   }

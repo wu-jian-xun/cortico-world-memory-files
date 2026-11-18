@@ -134,11 +134,28 @@ const TOOLS: ToolDescribe[] = [
     },
   },
   {
+    name: 'ms_effort',
+    tags: ['write'],
+    summary: '记一次「这条捞得多费劲」：费劲 +1、翻半天 +2，攒成护盾，衰减时掉得慢。',
+    description:
+      '记一次「这条我捞得多费劲」：好捞不记，翻了会儿 +1，翻半天 +2，攒成这条的护盾，ms_decay 掉它的时候打折。只动难度分、不动引力——翻得费劲不算「做成事」。',
+    parameters: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['hook', 'effort'],
+      properties: {
+        hook: { type: 'string', description: '哪一条：账本里的钩子。' },
+        effort: { type: 'integer', minimum: 1, maximum: 3, description: '1 好捞（不记）/ 2 翻了会儿 / 3 翻半天。' },
+        note: { type: 'string', description: '怎么翻到的（可省）。' },
+      },
+    },
+  },
+  {
     name: 'ms_hook',
     tags: ['write'],
     summary: '留一个钩子进 hooks.md（根目录）：钩子 | 去处；不自动，靠人写。',
     description:
-      '留一个钩子：往根目录 hooks.md 写一行「钩子 | 去处 | 一句话」。不自动——什么值得留钩子是人/模型的判断。同一个钩子再写=改去处；remove=true 删掉。',
+      '留一个钩子：往根目录 hooks.md 写一行「钩子 | 去处 | 一句话」。不自动——什么值得留钩子是人/模型的判断。一个钩子可以指好几处：同名同去处只更新备注，同名不同去处再加一行（一件事能从几个角度被勾回来）；remove=true 把这个钩子的几行一起删掉。',
     parameters: {
       type: 'object',
       additionalProperties: false,

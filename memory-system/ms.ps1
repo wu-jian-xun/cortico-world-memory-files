@@ -274,7 +274,7 @@ function Do-Backup([string]$root, [string]$dest) {
     if (-not (Test-Path -LiteralPath $dest)) { New-Item -ItemType Directory -Path $dest -Force | Out-Null }
     $target = Join-Path $dest ('memory-' + (Get-Date -Format 'yyyy-MM-dd'))
     if (-not (Test-Path -LiteralPath $target)) { New-Item -ItemType Directory -Path $target -Force | Out-Null }
-    $r = robocopy $root $target /E /R:1 /W:1 /NFL /NDL /NJH /NP
+    $r = robocopy $root $target /E /R:1 /W:1 /NFL /NDL /NJH /NP /XD blobs tmp memo-index .git node_modules /XF *.safetensors
     $code = $LASTEXITCODE
     if ($code -ge 8) { throw "robocopy failed with code $code" }
     Write-Utf8 (Join-Path $root 'notes\backup-last.txt') ((Today) + "`n")
