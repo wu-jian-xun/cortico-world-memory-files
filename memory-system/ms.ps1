@@ -11,8 +11,20 @@ param(
 # losing itself when the context is wiped.
 # ASCII only. All human text lives in .md files, read/written as UTF8.
 
+# ---- stdout encoding (added 2026-11-18) ----
+# The node side reads stdout with setEncoding('utf8'). Without this, PowerShell
+# writes stdout in the system code page (936/GBK on a Chinese Windows) and every
+# CJK char arrives as U+FFFD. Output only; files are still read/written as UTF-8.
+# NOTE: keep this file pure ASCII - PowerShell 5.1 reads a BOM-less .ps1 as ANSI,
+# and a multi-byte char at end of line can swallow the newline and break parsing.
+try {
+    [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+    $OutputEncoding = [Console]::OutputEncoding
+} catch { $null = $_ }
+
 $ErrorActionPreference = 'Stop'
 $Utf8 = New-Object System.Text.UTF8Encoding($false)
+
 $ScriptRoot = $PSScriptRoot
 if (-not $ScriptRoot) { $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path }
 
@@ -172,6 +184,8 @@ function Do-Check([string]$root) {
     $todo = Read-Text (Join-Path $root 'todo.md')
     $open = @()
     foreach ($ln in ($todo -split "`n")) {
+        # already-done bullets are not stale work: skip anything carrying a check mark
+        if ($ln -match "\u2705") { continue }
         if ($ln -match '^\s*-\s+') {
             if ($ln -match '(\d{4}-\d{2}-\d{2})') {
                 $d = [datetime]::ParseExact($Matches[1], 'yyyy-MM-dd', $null)
@@ -186,6 +200,40 @@ function Do-Check([string]$root) {
         Write-Output "[OK  ] no stale todo items"
     }
 
+    # ---- hooks.md: targets that point nowhere (added 2026-11-18) ----
+    # A hook is only worth keeping if the place it points at still exists;
+    # otherwise ms_recall shows a line that cannot be followed.
+    $hip = Join-Path $root 'hooks.md'
+    if (Test-Path -LiteralPath $hip) {
+        $badh = @()
+        $total = 0
+        foreach ($ln in ((Read-Text $hip) -split "`n")) {
+            if ($ln -notmatch '\|') { continue }
+            if ($ln -match '^\s*[#>-]') { continue }
+            $cells = $ln.Split('|')
+            if ($cells.Count -lt 2) { continue }
+            $hook = $cells[0].Trim()
+            $target = $cells[1].Trim().Trim('`')
+            if ($hook -eq '' -or $hook -match '^-+$') { continue }
+            if ($target -eq '') { continue }
+            if ($target -match '^\(' -or $target -match '^\uFF08') { continue }
+            # a glob is not a path - Test-Path cannot check 'blobs/me-*-2026-11-12.jpg'
+            if ($target -match '[*?]') { continue }
+            $total++
+            $pathPart = $target -replace ':\d+\s*$', ''
+            if (-not (Test-Path -LiteralPath (Join-Path $root $pathPart))) {
+                $badh += ($hook + ' -> ' + $target)
+            }
+        }
+        if ($total -eq 0) {
+            Write-Output "[INFO] hooks.md has no parsable rows"
+        } elseif ($badh.Count -gt 0) {
+            Write-Output "[INFO] $($badh.Count) of $total hook target(s) point nowhere"
+            foreach ($b in ($badh | Select-Object -First 5)) { Write-Output ("       " + $b) }
+        } else {
+            Write-Output "[OK  ] all $total hook targets resolve"
+        }
+    }
     $bk = Join-Path $root 'notes\backup-last.txt'
     if (Test-Path -LiteralPath $bk) {
         $raw = (Read-Text $bk).Trim()
